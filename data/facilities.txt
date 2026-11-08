@@ -1,0 +1,11 @@
+# FacilityID|FacilityName|BuildingName|Category
+F001|Main Reading Room|Library|Library
+F002|Tutoring Center|Library|Tutoring Center
+F003|Student Services Office|Student Union|Student Services Office
+F004|Computer Lab A|Science Building|Computer Lab
+F005|Room 101|Engineering Building|Classroom
+F006|Computer Lab B|Engineering Building|Computer Lab
+F007|Room 101|Business Building|Classroom
+F008|Fitness Center|Gym|Recreation
+F009|Room 205|Science Building|Classroom
+F010|Research Help Desk|Library|Library

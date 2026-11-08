@@ -1,0 +1,8 @@
+# BuildingName
+Library
+Student Union
+Science Building
+Engineering Building
+Business Building
+Gym
+Observatory
