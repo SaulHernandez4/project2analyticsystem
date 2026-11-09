@@ -326,6 +326,227 @@ static bool parseMenuChoice(const std::string& s, int& value) {
     return true;
 }
 
+//member c stuff
+struct DeptNode {
+    std::string name;
+    DeptNode* parent;
+    std::vector<DeptNode*> children;
+    explicit DeptNode(const std::string& n) : name(n), parent(0) {}
+
+};
+
+class DepartmentTree {
+public:
+    DepartmentTree() : root_(0), size_(0) {}
+    ~DepartmentTree() { destroy(root_); }
+
+    bool empty() const { return root_ == 0; }
+    std::size_t size() const { return size_; }
+
+    const DeptNode* find(const std::string& name) const { return findIn(root_, name); }
+
+    int add(const std::string& name, const std::string& parentName) {
+        if (findIn(root_, name)) return 1;
+        if (!root_) {
+            root_ = new DeptNode(name);
+            ++size_;
+            return 0;
+        }
+        DeptNode* p = findIn(root_, parentName);
+        if (!p) return 2;
+        DeptNode* n = new DeptNode(name);
+        n->parent = p;
+        p->children.push_back(n);
+        ++size_;
+        return 0;
+    }
+
+    static int depthOf(const DeptNode* n) {
+        int d = 0;
+        while (n && n->parent) {
+            ++d;
+            n = n->parent;
+        }
+        return d;
+    }
+
+    void printHierarchy() const { printNode(root_, 0); }
+
+    std::vector<std::string> preorder() const {
+        std::vector<std::string> out;
+        collect(root_, out);
+        return out;
+    }
+private:
+    DepartmentTree(const DepartmentTree&);
+    DepartmentTree& operator=(const DepartmentTree&);
+
+    static void destroy(DeptNode* n) {
+        if (!n) return;
+        for (std::size_t i = 0; i < n->children.size(); ++i) destroy(n->children[i]);
+        delete n;
+    }
+
+    static DeptNode* findIn(DeptNode* n, const std::string& name) {
+        if (!n) return 0;
+        if (equalsIgnoreCase(n->name, name)) return n;
+        for (std::size_t i = 0; i < n->children.size(); ++i) {
+            DeptNode* r = findIn(n->children[i], name);
+            if (r) return r;
+        }
+        return 0;
+    }
+
+    static void printNode(const DeptNode* n, int depth) {
+        if (!n) return;
+        std::cout << std::string(static_cast<std::size_t>(depth) * 4, ' ') << n->name << std::endl;
+        for (std::size_t i = 0; i < n->children.size(); ++i)
+            printNode(n->children[i], depth + 1);
+    }
+
+    static void collect(const DeptNode* n, std::vector<std::string>& out) {
+        if (!n) return;
+        out.push_back(n->name);
+        for (std::size_t i = 0; i < n->children.size(); ++i)
+            collect(n->children[i], out);
+    }
+
+    DeptNode* root_;
+    std::size_t size_;
+};
+
+static void loadDepartments(const std::string& path, const std::string& fileName, DepartmentTree& tree) {
+    int accepted = 0, rejected = 0;
+    std::ifstream in(path.c_str());
+    if (!in) {
+        std::cout << "Error: cannot open file " << fileName << std::endl;
+    }
+    else {
+        std::string line;
+        int lineNo = 0;
+        while (std::getline(in, line)) {
+            ++lineNo;
+            if (trim(line).empty() || isCommentLine(line)) continue;
+            std::vector<std::string> f = splitFields(line);
+            if (f.size() != 2) {
+                warn(fileName, lineNo, "wrong field count (expected 2 fields)");
+                ++rejected;
+                continue;
+            }
+            const std::string& name = f[0];
+            const std::string& parent = f[1];
+            if (name.empty() || parent.empty()) {
+                warn(fileName, lineNo, "empty required field");
+                ++rejected;
+                continue;
+            }
+            bool parentIsNone = equalsIgnoreCase(parent, "NONE");
+            if (tree.empty()) {
+                if (!parentIsNone) {
+                    warn(fileName, lineNo,
+                        "first department must be the root with parent NONE (got '" + parent + "')");
+                    ++rejected;
+                    continue;
+                }
+            }
+            else {
+                if (tree.find(name)) {
+                    warn(fileName, lineNo, "duplicate department '" + name + "'");
+                    ++rejected;
+                    continue;
+                }
+                if (!tree.find(parent)) {
+                    if (parentIsNone)
+                        warn(fileName, lineNo, "root already exists; only the first department may use NONE");
+                    else
+                        warn(fileName, lineNo, "unknown parent '" + parent + "'");
+                    ++rejected;
+                    continue;
+                }
+            }
+            tree.add(name, parent);
+            ++accepted;
+        }
+    }
+    std::cout << fileName << ": " << accepted << " accepted, " << rejected << " rejected" << std::endl;
+}
+
+static void addDepartment(DepartmentTree& tree) {
+    std::string name, parent;
+    if (!readLine("Enter department name: ", name)) return;
+    if (name.empty()) {
+        std::cout << "Error: department name cannot be blank" << std::endl;
+        return;
+    }
+    if (tree.find(name)) {
+        std::cout << "Error: department '" << name << "' already exists" << std::endl;
+        return;
+    }
+    if (tree.empty()) {
+        tree.add(name, "");
+        std::cout << "Added '" << name << "' as the root department" << std::endl;
+        return;
+    }
+    if (!readLine("Enter parent department: ", parent)) return;
+    if (parent.empty()) {
+        std::cout << "Error: parent name cannot be blank" << std::endl;
+        return;
+    }
+    const DeptNode* p = tree.find(parent);
+    if (!p) {
+        std::cout << "Error: parent department '" << parent << "' does not exist" << std::endl;
+        return;
+    }
+    tree.add(name, p->name);
+    std::cout << "Added '" << name << "' under '" << p->name << "'." << std::endl;
+}
+
+static void searchDepartment(const DepartmentTree& tree) {
+    if (tree.empty()) {
+        std::cout << "No departments are loaded." << std::endl;
+        return;
+    }
+    std::string name;
+    if (!readLine("Enter department name: ", name)) return;
+    if (name.empty()) {
+        std::cout << "Error: department name cannot be blank." << std::endl;
+        return;
+    }
+    const DeptNode* n = tree.find(name);
+    if (!n) {
+        std::cout << "Not found: no department named '" << name << "'." << std::endl;
+        return;
+    }
+    std::cout << "Name: " << n->name << std::endl;
+    std::cout << "Parent: " << (n->parent ? n->parent->name : std::string("None")) << std::endl;
+    std::cout << "Direct children: " << n->children.size() << std::endl;
+    std::cout << "Depth: " << tree.depthOf(n) << std::endl;
+    return;
+}
+
+static void displayDepartmentHierarchy(const DepartmentTree& tree) {
+    if (tree.empty()) {
+        std::cout << "No departments are loaded." << std::endl;
+        return;
+    }
+    tree.printHierarchy();
+    return;
+}
+
+static void runPreorderTraversal(const DepartmentTree& tree) {
+    if (tree.empty()) {
+        std::cout << "No departments are loaded." << std::endl;
+        return;
+    }
+    std::vector<std::string> seq = tree.preorder();
+    std::cout << "Preorder: ";
+    for (std::size_t i = 0; i < seq.size(); ++i) {
+        if (i) std::cout << " -> ";
+        std::cout << seq[i];
+    }
+    std::cout << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     std::string dataDir = "data";
     std::size_t hashCapacity = 11;
@@ -340,6 +561,7 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::string> buildings;
     FacilityManager facilities(hashCapacity);
+    DepartmentTree departments;
 
     loadBuildings(dataDir + "buildings.txt", "buildings.txt", buildings);
 
@@ -348,6 +570,9 @@ int main(int argc, char* argv[]) {
     loadFacilities(dataDir + "facilities.txt", "facilities.txt", buildings, facilities);
 
     // MEMBER C: load departments.txt here and print its load summary.
+
+    
+    loadDepartments(dataDir + "departments.txt", "departments.txt", departments);
 
     bool running = true;
     while (running) {
@@ -379,20 +604,16 @@ int main(int argc, char* argv[]) {
                 std::cout << "Not implemented yet." << std::endl;
                 break;
             case 6:
-                // MEMBER C: call the "add department" function here.
-                std::cout << "Not implemented yet." << std::endl;
+                addDepartment(departments);
                 break;
             case 7:
-                // MEMBER C: call the "search department" function here.
-                std::cout << "Not implemented yet." << std::endl;
+                searchDepartment(departments);
                 break;
             case 8:
-                // MEMBER C: call the "display department hierarchy" function here.
-                std::cout << "Not implemented yet." << std::endl;
+                displayDepartmentHierarchy(departments);
                 break;
             case 9:
-                // MEMBER C: call the preorder traversal function here.
-                std::cout << "Not implemented yet." << std::endl;
+                runPreorderTraversal(departments);
                 break;
             case 10:
                 std::cout << "Goodbye." << std::endl;
