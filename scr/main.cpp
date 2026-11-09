@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <climits>
+#include <queue>
 
 struct Facility {
     std::string id;
@@ -182,6 +183,118 @@ static int findBuilding(const std::vector<std::string>& buildings, const std::st
         if (equalsIgnoreCase(buildings[i], name)) return static_cast<int>(i);
     return -1;
 }
+
+            }
+        }
+
+        std::cout << fileName << ": " << accepted << " accepted, "
+                  << rejected << " rejected" << std::endl;
+    }
+
+    void displayGraph(const std::vector<std::string>& buildings) const {
+        if (buildings.empty()) {
+            std::cout << "No buildings are loaded." << std::endl;
+            return;
+        }
+
+        std::cout << "\nCampus Graph:" << std::endl;
+        for (std::size_t i = 0; i < buildings.size(); ++i) {
+            std::cout << buildings[i] << ": ";
+
+            if (adjacency_[i].empty()) {
+                std::cout << "(no connections)";
+            } else {
+                for (std::size_t j = 0; j < adjacency_[i].size(); ++j) {
+                    if (j > 0)
+                        std::cout << ", ";
+                    std::cout << buildings[adjacency_[i][j]];
+                }
+            }
+
+            std::cout << std::endl;
+        }
+    }
+
+    void displayStats(const std::vector<std::string>& buildings) const {
+        std::size_t totalEdges = 0;
+
+        for (std::size_t i = 0; i < adjacency_.size(); ++i)
+            totalEdges += adjacency_[i].size();
+
+        // Each undirected edge appears in two adjacency lists.
+        totalEdges /= 2;
+
+        std::cout << "\nCampus Graph Statistics:" << std::endl;
+        std::cout << "Total buildings: " << buildings.size() << std::endl;
+        std::cout << "Total connections: " << totalEdges << std::endl;
+        std::cout << "Building degrees:" << std::endl;
+
+        for (std::size_t i = 0; i < buildings.size(); ++i) {
+            std::cout << "  " << buildings[i] << ": "
+                      << adjacency_[i].size() << std::endl;
+        }
+    }
+
+    void BFS(const std::string& startName,
+             const std::vector<std::string>& buildings) const {
+        int start = findBuilding(buildings, startName);
+
+        if (start < 0) {
+            std::cout << "Unknown building: '" << startName << "'." << std::endl;
+            return;
+        }
+
+        std::vector<bool> visited(buildings.size(), false);
+        std::vector<int> distance(buildings.size(), -1);
+        std::queue<int> pending;
+
+        visited[start] = true;
+        distance[start] = 0;
+        pending.push(start);
+
+        std::cout << "\nBFS reachable buildings from "
+                  << buildings[start] << ":" << std::endl;
+
+        while (!pending.empty()) {
+            int current = pending.front();
+            pending.pop();
+
+            std::cout << "  " << buildings[current]
+                      << " (distance " << distance[current] << ")" << std::endl;
+
+            for (std::size_t i = 0; i < adjacency_[current].size(); ++i) {
+                int neighbor = adjacency_[current][i];
+
+                // Mark as visited when enqueued to prevent duplicate visits.
+                if (!visited[neighbor]) {
+                    visited[neighbor] = true;
+                    distance[neighbor] = distance[current] + 1;
+                    pending.push(neighbor);
+                }
+            }
+        }
+
+        int reachable = 0;
+        for (std::size_t i = 0; i < visited.size(); ++i) {
+            if (visited[i])
+                ++reachable;
+        }
+
+        std::cout << "Reachable buildings: " << reachable
+                  << " out of " << buildings.size() << std::endl;
+    }
+
+private:
+    bool hasConnection(int first, int second) const {
+        for (std::size_t i = 0; i < adjacency_[first].size(); ++i) {
+            if (adjacency_[first][i] == second)
+                return true;
+        }
+        return false;
+    }
+
+    std::vector<std::vector<int> > adjacency_;
+};
 
 static void loadBuildings(const std::string& path, const std::string& fileName,
                           std::vector<std::string>& buildings) {
@@ -567,6 +680,13 @@ int main(int argc, char* argv[]) {
 
     // MEMBER B: load connections.txt here (after buildings, before facilities) and print its load summary.
 
+    CampusGraph campusGraph(buildings.size());
+    campusGraph.loadConnections(
+        dataDir + "connections.txt",
+        "connections.txt",
+        buildings
+    );
+
     loadFacilities(dataDir + "facilities.txt", "facilities.txt", buildings, facilities);
 
     // MEMBER C: load departments.txt here and print its load summary.
@@ -593,15 +713,15 @@ int main(int argc, char* argv[]) {
                 break;
             case 3:
                 // MEMBER B: call the "view campus graph" function here.
-                std::cout << "Not implemented yet." << std::endl;
+                campusGraph.displayGraph(buildings);
                 break;
             case 4:
                 // MEMBER B: call the "display graph counts and degrees" function here.
-                std::cout << "Not implemented yet." << std::endl;
+                campusGraph.displayStats(buildings);
                 break;
             case 5:
                 // MEMBER B: call the BFS reachability function here (prompt for start building, handle unknown names).
-                std::cout << "Not implemented yet." << std::endl;
+                campusGraph.BFS()
                 break;
             case 6:
                 addDepartment(departments);
